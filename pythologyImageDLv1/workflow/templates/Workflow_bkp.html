@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Workflow</title>
+
+	{% load static %}
+	<link rel="shortcut icon" href="" />
+	<script src="{% static 'lib/jquery-3.2.1.js' %}" type="text/javascript"></script>
+	<link rel="stylesheet" href="{% static 'lib/fontawesome5.8/css/all.min.css' %}" >
+
+	<script src="{% static 'lib/fontawesome5.8/js/all.min.js' %}" type="text/javascript"></script>
+
+	<link rel="stylesheet" href="{% static 'lib/bootstrap-4.1.3/css/bootstrap.min.css' %}">
+
+	<script src="{% static 'lib/bootstrap-4.1.3/js/bootstrap.bundle.min.js' %}" type="text/javascript"></script> 
+
+
+	<script src="{% static 'lib/d3.v4.js' %}" type="text/javascript"></script>
+
+	<style type="text/css">
+		
+		html{
+			
+			height: 100%;
+			width:100%;
+			min-width: 960px;
+			min-height: 520px;
+
+		}
+
+		body{
+
+			height: 100%;
+			width: 100%;
+			background-color: #c6cbd0;
+		}
+
+		#sideBar{
+			width: 240px;
+			position: absolute;
+			height: 100%;
+			background-color: #ffffff;
+		}
+
+		#main{
+			left: 240px;
+			top:0;
+			height: 100%; 
+			width: 530px;
+			position: absolute;
+		}
+
+		/*
+		.sidebarmenu{
+
+			padding-top: 10px;
+			padding-bottom: 10px;
+			cursor: default;
+			background-color: #265e6e;
+			width: 100%;
+			border-color:  #163e4e;
+
+		}
+		
+		.sidebarmenu_enable > .stepname{
+			color :white;
+
+		}
+
+		.sidebarmenu_disable > .stepname{
+			
+
+		}
+
+		.sidebarStepPanel{
+			width: 100%;
+			margin-top: 10px;
+			margin-bottom: 10px;
+
+		}
+
+		*/
+		.sidebarStep_enable > .sidebartitle{
+
+			color: steelblue;
+
+		}
+		.sidebarStep_disable > .sidebartitle{
+
+			color :#b0b0b0;
+		}
+
+	</style>
+
+</head>
+<body style="">
+	<div id='sideBar'>
+		<div style="padding-top: 15px;padding-right:10px;padding-left:10px;padding-bottom: 15px;  ">
+			
+			<h4 class='text-info'>Pythology</h4>
+			<h7 style='color: grey;'>Image Analysis Workflow</h7>
+		</div>
+
+		<!--hr style="color:white;border-color: white;"-->
+		<div >
+
+			<div class='sidebarStepPanel card sidebarStep_enable' step='1'>
+				<div class="card-header sidebartitle">Step 1: Select Image</div>
+
+			</div>
+
+
+			<div class='sidebarStepPanel card sidebarStep_disable' step='2'>
+				<div class="card-header sidebartitle">Step 2: Select Analysis Area</div>
+				
+			</div>
+
+			<div class='sidebarStepPanel card sidebarStep_disable' step='3'>
+				<div class="card-header sidebartitle">Step 3: Annotation</div>
+				
+			</div>
+
+			<div class='sidebarStepPanel card sidebarStep_disable' step='4'>
+				<div class="card-header sidebartitle">Step 4: Results</div>
+				
+			</div>
+			
+		 	
+
+
+		</div>
+
+		
+
+
+	</div>
+
+
+	<div id='main'>
+		 
+	</div>
+
+
+	<div id='loadingcanvas' style="position: fixed;width: 100%;height: 100%;left:0;top:0;background :rgba(192, 192, 192, .6);z-index:99999;display: none;" >
+		<div class="h-100" style="display: flex;justify-content: center;align-items: center;vertical-align: middle;">
+				
+				loading...
+				
+		</div>
+	</div>
+
+
+	<script type="text/javascript">
+		
+
+		$(function(){
+
+			//var docHeight = $(document).height();
+			//$(body)
+			function initPage(){
+				var pagew = $("body").width();
+				var pageh = $("body").height();
+
+				var sideBarw= $("#sideBar").width();
+				var panelMargin=10;
+
+				var mainW=pagew-sideBarw;
+
+				$("#main").width(mainW);
+
+				$("#main").height(pageh);
+
+				$("#main").html("<div style='margin-top:"+panelMargin+"px;margin-left:"+panelMargin+"px;background-color:white;width:"+(mainW-2*panelMargin)+"px;height:"+(pageh-2*panelMargin)+"px;position:absolute;'><div  id='displayarea' style='width:100%;height:100%;position: relative;'></div></div>");
+
+
+				pythologyPlot.init("displayarea",Math.floor($("#displayarea").width()),Math.floor($("#displayarea").height()) );
+
+
+				workflow.changeStatus(1);
+			}
+
+
+			function loading(div,color='steelblue',x=2){
+
+				div.html("<div><i class='fas fa-circle-notch fa-spin fa-"+x+"x' style='color:"+color+";'></i></div>");
+			}
+
+
+			var fullpageLoading={
+
+
+				loadingStart:function(){
+
+					$("#loadingcanvas").show();
+
+				},
+				loadingEnd:function(){
+
+					$("#loadingcanvas").hide();
+
+				},
+				loadingError:function(msg){
+
+					$("#loadingcanvas").show();
+					$("#loadingcanvas").html('<div class="h-100" style="display: flex;justify-content: center;align-items: center;vertical-align: middle;"><h1 style="color:#8847E3">'+msg+'</h1></div>')
+				},
+			}
+
+
+			var pythologyPlot={
+
+				canvasid:"canvas",
+				svgid : "svg",
+				h:0,
+				w:0,
+
+				init : function(id,w,h){
+
+					this.w=w;
+					this.h=h;
+					
+					d3.select("#"+id).append('canvas').attr("id",pythologyPlot.canvasid).style("position","absolute")
+
+					var canvas = document.getElementById(pythologyPlot.canvasid);
+
+					canvas.width= w;
+					canvas.height= h;
+
+				}
+
+
+
+			}
+
+
+			var workflow={
+				step:0,
+				imagePath:"",
+
+
+				changeStatus:function( step){
+					
+					var currentstep = this.step;
+
+
+
+					if(step !==currentstep){
+
+						this.step = step;
+
+
+						$(".stepcontent").remove();
+						$(".sidebarStepPanel").removeClass("sidebarStep_enable");
+						$(".sidebarStepPanel").addClass("sidebarStep_disable");
+
+
+						var div = $(".sidebarStepPanel[step='"+step+"']");
+
+						div.removeClass("sidebarStep_disable");
+						div.addClass("sidebarStep_enable");
+						div.append("<div class='card-body stepcontent'></div>");
+
+
+
+						if(step===1){
+							this.step1();
+
+						}else if(step===2){
+							this.step2();
+						}else if(step===3){
+
+							this.step3();
+						}else if(step===4){
+
+							this.step4();
+
+						}
+
+					}
+
+					
+
+
+
+
+				},
+
+
+				step1_imagescalerate:[1,1],
+
+				step1_imagesize:[1,1],
+				step1_rawsize:[1,1],
+
+				step1:function(){
+
+					var div = $(".sidebarStep_enable[step='1']");
+					div = div.find(".stepcontent");
+
+					loading(div);
+
+				
+					$.ajax({
+
+						url: "queryDatasource",
+						method:"post",
+						format:"json",
+						success:function(res){
+
+							res= res.result;
+
+							var optionstr=""
+							for(var i in res){
+								optionstr+="<option value='"+res[i]["path"]+"'>"+res[i]["name"]+"</option>"
+							}
+
+							div.html("<div class='form-group'><label for='datasourceselection'>Select a Data Source</label><select class='form-control form-control-sm' id='datasourceselection'>"+optionstr+"</select></div>");
+
+							div.append("<div name='pathlist'></div>");
+
+
+							$("#datasourceselection").change(function(){
+
+								var value=$(this).val();
+								workflow.step1_renderPath(value,div.find("[name='pathlist']"))
+
+							})
+
+							$("#datasourceselection").trigger("change")
+
+						},error:function(){
+
+							div.html("error")
+
+						}
+
+
+					})
+
+
+				},
+				step1_renderPath:function(path,div){
+
+
+					loading(div);
+					$.ajax({
+
+						url: "queryFileList",
+						method:"post",
+						format:"json",
+						data:{"path":path},
+						success:function(res){
+							res = res.result;
+							
+
+							listitem="<div class='list-group'>";
+							
+							for(var i in res){
+
+								if(res[i]["isdir"]){
+									listitem+="<a class='list-group-item list-group-item-action isfolder' style='padding-bottom:5px;padding-top:5px;cursor:pointer;' value='"+res[i].path+"'>"+res[i].name+"<small class='float-right text-secondary'><i class='fas fa-folder-open'> </i></small></a>";
+
+								}else{
+									listitem+="<a class='list-group-item list-group-item-action isfile' style='padding-bottom:5px;padding-top:5px;cursor:pointer;' value='"+res[i].path+"'>"+res[i].name+"<small class='float-right text-info'><i class='fas fa-file'> </i></small></a>";
+
+								}
+								
+							}
+							listitem+="</div>";
+							
+							div.html("<div style='max-height:260px;overflow-y: auto;'>"+listitem+"</div><div style='margin-bottom:5px;margin-top:5px;'><button class='btn btn-outline-secondary btn-sm disabled' tostep2='0'>Next Step</button></div>");
+
+
+							div.find(".isfolder").click(function(){
+								var newpath = $(this).attr("value");
+								workflow.step1_renderPath(newpath,div);
+							});
+
+							div.find(".isfile").click(function(){
+								var newpath = $(this).attr("value");
+
+								workflow.step1_renderImage(newpath);
+							});
+
+
+							div.find("[tostep2]").click(function(){
+
+								if($(this).attr("tostep2")==="1"){
+
+
+									workflow.changeStatus(2);
+								}
+
+							})
+
+
+
+						},error:function(){
+
+							div.html("error")
+
+						}
+
+
+					})
+
+
+
+				},
+
+				step1_renderImage:function(path){
+					workflow.imagePath=path;
+
+					fullpageLoading.loadingStart()
+
+
+					var w= Math.floor(pythologyPlot.w);
+					var h= Math.floor(pythologyPlot.h);
+
+					var canvas = document.getElementById(pythologyPlot.canvasid);
+					var ctx = canvas.getContext('2d');
+					ctx.clearRect(0, 0, w, h);
+
+
+
+					$.ajax({
+						url: "getScaledImageByWH",
+						method:"post",
+						format:"json",
+						data:{"path":path,"w":w,"h":h},
+						success:function(res){
+
+							var imgsize = res.size;
+
+							var pixels = res.pixels;
+							workflow.step1_rawsize = res.rawSize;
+							workflow.step1_imagescalerate = res.scale;
+
+							for(var i=0;i<pixels.length;i++){
+
+								var x = i%imgsize[0];
+								var y = i/imgsize[0];
+
+								var colorstr="rgb("+pixels[i][0]+","+pixels[i][1]+","+pixels[i][2]+")";
+								
+								ctx.fillStyle=colorstr;
+
+
+								ctx.fillRect(x,y, 1, 1);
+							}
+
+
+							//draw finish
+
+							$("[tostep2='0']").attr("tostep2","1").removeClass("disabled").removeClass("btn-outline-secondary").addClass("btn-outline-info");
+
+
+							fullpageLoading.loadingEnd();
+
+
+						},error:function(){
+							fullpageLoading.loadingError("error");
+
+						}
+					})
+
+
+
+
+
+				},
+
+				
+				step2_imageLocation:[],
+				step2_imagesize:[],
+				step2_imagescalerate:[],
+				step2_crop:[],
+				step2_limit:100000000,
+				step2:function(){
+					var div = $(".sidebarStep_enable[step='2']");
+					div = div.find(".stepcontent");
+
+
+					workflow.step2_imagesize=workflow.step1_rawsize;
+					workflow.step2_imageLocation=[0,0]
+					workflow.step2_imagescalerate=workflow.step1_imagescalerate;
+
+					var buttonstr="<button class='btn btn-sm btn-outline-secondary disabled' tostep3='0'>Next Step</button>";
+					if(workflow.step2_imagesize[0]*workflow.step2_imagesize[1]<50000000){
+						buttonstr="<button class='btn btn-sm btn-outline-info' tostep3='1'>Next Step</button>";
+
+						workflow.step2_crop=[0,0,workflow.step1_rawsize[0],workflow.step1_rawsize[1]]
+					}
+
+
+					div.html("<div name='step2action'><span>Please select an area</span></div><hr><div>"+buttonstr+"</div>")
+
+
+					//svg
+					$("#"+pythologyPlot.svgid).remove();
+					
+					d3.select("#displayarea").append("svg").attr("id",'svg').style("position","absolute")
+					.style("top", '0px')
+    				.style("left", '0px')
+					.attr("width",pythologyPlot.w)
+					.attr("height",pythologyPlot.h);
+
+
+					var status=0;
+					var startpos=[];
+					var endpos=[];
+					var selectRect;
+					d3.select("#svg").on("mousedown", function() {
+						if(status!==3){
+
+							status=1;
+							var x = d3.mouse(this)[0];
+							var y = d3.mouse(this)[1];
+
+							startpos=[x,y];
+							endpos=[x,y];
+							$("#selectrect").remove();
+							selectRect = d3.select("#svg").append("rect").attr("id","selectrect").attr("x",startpos[0]).attr("y", startpos[1])
+									.attr("width", endpos[0]-startpos[0]).attr("height",endpos[1]-startpos[1])
+									.attr("fill-opacity",0)
+									.attr("stroke-dasharray","5,5")
+									.attr("stroke-width", 1).attr("stroke", "steelblue");
+
+
+
+						}
+						
+						
+					});
+
+
+					d3.select("#svg").on("mousemove",function(){
+						if(status===1){
+							var x = d3.mouse(this)[0];
+							var y = d3.mouse(this)[1];
+
+							endpos=[x,y];
+
+							var rectw=Math.abs(endpos[0]-startpos[0]);
+							var recth=Math.abs(endpos[1]-startpos[1]);
+
+							var rectx = (startpos[0]<endpos[0])? startpos[0] : endpos[0];
+							var recty = (startpos[1]<endpos[1])? startpos[1] : endpos[1];
+
+							workflow.step2_crop=[ Math.ceil(rectx*workflow.step2_imagescalerate[0]),Math.ceil(recty*workflow.step2_imagescalerate[1]),Math.ceil(rectw*workflow.step2_imagescalerate[0]),Math.ceil(recth*workflow.step2_imagescalerate[1])];
+
+							selectRect.attr("width", rectw).attr("height",recth).attr("x",rectx).attr("y",recty);
+						}
+						
+
+					})
+
+					d3.select("#svg").on("mouseup",function(){
+						if(status===1){
+							 
+
+							var totalPix = workflow.step2_crop[2]*workflow.step2_crop[3];
+							if(totalPix>workflow.step2_limit){
+
+
+								div.find("[name='step2action']").html("<span>The area you selected is too large.<br></span>")
+							}else{
+
+								var pixelstr = workflow.step2_crop[2] +" x "+workflow.step2_crop[3];
+
+								div.find("[name='step2action']").html("<div><span>Selected pixels size: </span><br> <span>"+pixelstr+"</span></div>");
+
+								$("[tostep3='0']").attr("tostep3","1").removeClass("disabled").removeClass("btn-outline-secondary").addClass("btn-outline-info");
+
+								/*
+								div.find("[name='step2action']").html("<button name='viewsubplot' class='btn btn-outline-primary btn-sm'>Display</button>");
+
+								
+
+								div.find("[name='viewsubplot']").click(function(){
+
+									fullpageLoading.loadingStart();
+
+									$.ajax({
+
+										url: "getScaledCropedImage",
+										method:"post",
+										format:"json",
+										data:{
+											"path":workflow.imagePath,
+											"x": workflow.step2_crop[0],
+											"y": workflow.step2_crop[1],
+											"w": workflow.step2_crop[2],
+											"h": workflow.step2_crop[3],
+											"resizeW":Math.floor(pythologyPlot.w),"resizeH":Math.floor(pythologyPlot.h)
+
+										},
+										success:function(res){
+
+											var imgsize = res.size;
+
+											var pixels = res.pixels;
+											//workflow.step1_rawsize = res.rawSize;
+											//workflow.step1_imagescalerate = res.scale;
+											$("#selectrect").remove();
+
+											var canvas = document.getElementById(pythologyPlot.canvasid);
+											var ctx = canvas.getContext('2d');
+											ctx.clearRect(0, 0, pythologyPlot.w, pythologyPlot.h);
+
+											for(var i=0;i<pixels.length;i++){
+												for(var j=0;j<pixels[i].length;j++){
+
+													
+													var colorstr="rgb("+pixels[i][j][0]+","+pixels[i][j][1]+","+pixels[i][j][2]+")";
+
+													ctx.fillStyle=colorstr;
+
+													ctx.fillRect(j,i, 1, 1);
+												}
+												
+											}
+
+											//draw finish
+
+											
+
+											status=3;
+											fullpageLoading.loadingEnd();
+										}
+
+
+									})
+
+
+
+
+								})
+
+								*/
+							}
+
+
+						}
+						
+						status=0;
+					});
+
+
+
+
+
+					div.find("[tostep3]").click(function(){
+
+						if($(this).attr("tostep3")==="1"){
+
+
+							workflow.changeStatus(3);
+						}
+
+					})
+
+
+
+				},
+				step3:function(){
+					var div = $(".sidebarStep_enable[step='3']");
+					div = div.find(".stepcontent");
+
+					//remove step2 compontent
+					$("#"+pythologyPlot.svgid).remove();
+
+
+
+					//<button class='btn btn-sm btn-outline-primary'><i class='fas fa-search-plus'></i></button><button class='btn btn-sm btn-outline-primary'><i class='fas fa-history'></i></button>
+					//build a tool bar
+
+					var buttongroupstr="";
+					buttongroupstr+="<button type='button' name='aipredict' class='btn btn-primary btn-sm'>Predict</button>"
+					buttongroupstr+="<button type='button' name='mselection' class='btn btn-outline-primary btn-sm'>Label</button>";
+					buttongroupstr+="<button type='button' name='train' class='btn btn-outline-primary btn-sm'>Train</button>";
+
+					div.html("<div><div id='step3actions'><div class='btn-group' name='annotationmethod'>"+buttongroupstr+"</div><div name='annotationdetails'></div></div></div><hr><div><button class='btn btn-outline-info btn-sm disabled' tostep4='0'>Next Step</button></div>");
+
+
+
+					div.find("[name='annotationmethod']").on("click",".btn-outline-primary",function(){
+						div.find("[name='annotationmethod']").find(".btn").removeClass("btn-primary").addClass("btn-outline-primary");
+
+						$(this).removeClass("btn-outline-primary").addClass("btn-primary");
+
+						if($(this).attr("name")==="aipredict"){
+
+							workflow.step3_renderAIPredictionPanel(div.find("[name='annotationdetails']"));
+						}else if($(this).attr("name")==="mselection"){
+
+							workflow.step3_renderManuallySelectionPanel(div.find("[name='annotationdetails']"));
+						}else if($(this).attr("name")==="train"){
+
+							workflow.step3_renderTrainingPanel(div.find("[name='annotationdetails']"));
+
+						}
+
+						
+					});
+
+					workflow.step3_renderAIPredictionPanel(div.find("[name='annotationdetails']"));
+
+
+
+					workflow.step3_renderImage(workflow.imagePath,workflow.step2_crop);
+
+
+
+
+
+
+
+
+
+					div.find("[tostep4]").click(function(){
+
+						if($(this).attr("tostep4")==="1"){
+
+
+							workflow.changeStatus(4);
+						}
+
+					})
+
+
+
+
+				},
+				step3_renderManuallySelectionPanel:function(div){
+					div.html("<div  class='form-group'><label for='mmodelselection'>Select a Category</label><select class='form-control form-control-sm' id='mmodelselection'><option value=''>----</option></select> </div><div id='mmodelresult'></div>");
+
+					
+					$.ajax({
+
+						url: "queryAnnotations",
+						method:"post",
+						format:"json",
+						data:{"path":workflow.imagePath},
+						success:function(res){
+							
+							for(i in res){
+
+								$("#mmodelselection").append("<option value='"+i+"'>"+i+"</option>");
+
+							}
+						},error:function(e){
+
+							alert("error")
+
+						}
+					});
+
+
+					$("#mmodelselection").change(function(){
+
+						var categoryName =$(this).val();
+
+						$("#"+pythologyPlot.svgid).remove();
+						var svg = d3.select("#displayarea").append("svg").attr("id",pythologyPlot.svgid).style("position","absolute")
+							.style("top", '0px')
+							.style("left", '0px')
+							.attr("width",pythologyPlot.w)
+							.attr("height",pythologyPlot.h);
+
+						var lineFunc =d3.line()
+							.x(function(d){return d.x; })
+							.y(function(d){return d.y; })
+							.curve(d3.curveLinear);
+
+
+						var drawRect=svg.append("rect")
+							.attr("id","drawRect")
+							.attr("x",0)
+							.attr("y",0)
+							.attr("width",pythologyPlot.w)
+							.attr("height",pythologyPlot.h)
+							.style("fill-opacity",0)
+							.style("stroke-width",0.1)
+							.style("stroke","steelblue")
+							.style("fill","white");
+
+
+						if(categoryName === ""){
+
+
+
+
+						}else{
+							
+							$.ajax({
+								url: "filterAnnotations",
+								method:"post",
+								format:"json",
+								data:{"path":workflow.imagePath,"category":categoryName,"x":workflow.step3_currentRegion[0],"y":workflow.step3_currentRegion[1],"w":workflow.step3_size[0],"h":workflow.step3_size[1] },
+								success:function(res){
+
+									res = res.result;
+
+									
+
+									for(var i in res){
+
+										var coors = res[i]["coors"];
+										var details= res[i]["detail"];
+										var newcoors=[];
+										for(var j in coors){
+											newcoors.push({
+												"x":(coors[j][0]-workflow.step3_currentRegion[0])/workflow.step3_currentScale[0],
+												"y":(coors[j][1]-workflow.step3_currentRegion[1])/workflow.step3_currentScale[1],
+												
+											});
+										}
+
+										svg.append("path").datum(newcoors)
+														.attr("class","savedline")
+														.attr("d",lineFunc)
+														.attr("aid",res[i]["id"])
+														.attr("fill",function(d){return getRandomColor();})
+														.attr("fill-opacity",0.4)
+														.attr("stroke","black")
+														.style("cursor","pointer")
+														.attr("stroke-width",1)
+														.on("mouseover",function(){
+
+															d3.select(this).attr("fill-opacity",0.7)
+
+														}).on("mouseout",function(){
+															d3.select(this).attr("fill-opacity",0.4)
+
+														})
+
+
+									}
+
+								},error:function(e){
+									alert("error")
+
+								}
+
+
+
+							})
+
+
+						}
+
+
+
+						$("#"+pythologyPlot.svgid).on("click",".savedline",function(){
+
+							var thistarget= $(this);
+							var aid = $(this).attr("aid");
+
+							var renderstr="";
+							renderstr += "<div>";
+							renderstr+="<button class='btn btn-outline-info btn-sm' name='edit'>Edit</button>&nbsp;&nbsp;<button class='btn btn-outline-warning btn-sm' name='remove'>Remove</button>";
+							renderstr+="</div>";
+
+							$("#mmodelresult").html(renderstr);
+
+
+							$("#mmodelresult").find("[name='remove']").click(function(){
+
+								$.ajax({
+									url: "removeAnnotation",
+									method:"post",
+									format:"json",
+									data:{
+										"aid":aid,
+										
+									},
+									success:function(res){
+										status=0;
+
+										thistarget.remove()
+										
+
+									},error:function(){
+
+										alert("error")
+									}
+
+								})
+
+
+
+							})
+
+							$("#mmodelresult").find("[name='edit']").click(function(){
+
+								
+								alert("function not ready")
+
+								
+							})
+
+
+
+						})
+
+						workflow.step3_renderSelector_node(svg,drawRect);
+								
+
+
+					})
+
+					
+					$("#mmodelselection").trigger("change");
+
+
+
+				},
+				step3_renderTrainingPanel:function(div){
+					$.ajax({
+
+						url: "queryDLModels",
+						method:"post",
+						format:"json",
+						success:function(res){
+
+							var optstr="";
+							for(var i in res){
+								optstr+="<option value='"+i+"'>"+i+"</option>"
+
+							}
+							div.html("<div  class='form-group'><label for='aimodelselection'>Select an AI Model</label><select class='form-control form-control-sm' id='aimodelselection'>"+optstr+"</select></div><div name='aimodelresult'></div>");
+							$("#aimodelselection").change(function(){
+
+								var value = $(this).val();
+								var contentdiv = div.find("[name='aimodelresult']");
+
+								if(value ===""){
+
+									contentdiv.html("");
+
+								}else{
+
+									var data= res[value];
+									var itemstr="";
+									var target ="";
+									for(var i in data){
+										if(i==="target"){
+											itemstr+="<p>"+i+": <span style='color:steelblue;'>"+data[i]+"</span></p>";
+
+											target = data[i];
+										}else{
+											itemstr+="<p>"+i+": "+data[i]+"</p>";
+										}
+										
+									}
+
+									contentdiv.html("<div>"+itemstr+"</div>");
+
+									contentdiv.append("<div><h4>Make traning sets</h4></div>");
+									contentdiv.append("<div><label>Input Shape: &nbsp;&nbsp;<span name='inputshape' style='color:steelblue;'></span></label></div>")
+									contentdiv.append("<div><label>Step x: </label><input type='number' class='form-control-sm stepx' style='width:150px;' value='100';></div>");
+
+									contentdiv.append("<div><label>Step y: </label><input type='number' class='form-control-sm stepy' style='width:150px;' value='100';></div>");
+
+									workflow.step3_renderAnnotation(target,function(){
+										$.ajax({
+											url: "queryModelInputSize",
+											method:"post",
+											format:"json",
+											data:{"model":value },
+											success:function(inputshape){
+
+												inputshape = inputshape.shape;
+												contentdiv.find("[name='inputshape']").html(inputshape[0]+" x "+inputshape[1]);
+
+												contentdiv.append("<div> <button class='btn btn-outline-info btn-sm' id='maketrainset'>Make</button> &nbsp;&nbsp;<br><span name='makingstatus'></span></div>");
+
+
+												$("#maketrainset").click(function(){
+
+													var inputX = inputshape[0];
+													var inputY = inputshape[1];
+
+													var stepX = Number(contentdiv.find(".stepx").val());
+													var stepY = Number(contentdiv.find(".stepy").val());
+
+													$('#maketrainset').remove();
+													workflow.step3_makeTrainingSets(target, [inputX,inputY],[stepX,stepY],contentdiv.find("[name='makingstatus']"));
+
+												})
+												
+
+
+
+
+											},error:function(){
+
+												alert("load inputsize error")
+
+											}
+
+
+										})
+										
+									});
+								}
+							});
+							$("#aimodelselection").trigger("change");
+						},error:function(e){
+
+
+						}
+					});
+
+				},
+				step3_makeTrainingSets(category,inputShape,stepShape,infodiv){
+					//generate a random
+					infodiv.html("This function implement not ready. example please go to http://10.4.74.28:8080/notebooks/BIimg/ZhengJieImg.ipynb");
+					/*
+					var randomstr = Math.random().toString(36).substring(2, 10);
+					var today = new Date();
+					var date = today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+					randomstr = randomstr+"__"+date;
+					infodiv.html("Starting make training set...<br>please wait. don't close.");
+					$.ajax({
+						url: "MakeTrainingSets",
+						method:"post",
+						format:"json",
+						data:{"path":workflow.imagePath,"category":category,"x":workflow.step3_currentRegion[0],"y":workflow.step3_currentRegion[1],"w":workflow.step3_size[0],"h":workflow.step3_size[1] ,"stepx":stepShape[0],"stepy":stepShape[1],"inputx":inputShape[0],"inputy":inputShape[1],"job":randomstr},
+
+						success:function(res){
+
+							
+
+
+						},error:function(e){
+
+
+
+
+						}
+					})
+					*/
+
+
+				},
+				step3_renderAnnotation(categoryName,callback){
+
+
+					categoryName=categoryName.toLowerCase();
+					
+					$("#"+pythologyPlot.svgid).remove();
+					var svg = d3.select("#displayarea").append("svg").attr("id",pythologyPlot.svgid).style("position","absolute")
+							.style("top", '0px')
+							.style("left", '0px')
+							.attr("width",pythologyPlot.w)
+							.attr("height",pythologyPlot.h);
+
+					var lineFunc =d3.line()
+							.x(function(d){return d.x; })
+							.y(function(d){return d.y; })
+							.curve(d3.curveLinear);
+
+
+					var drawRect=svg.append("rect")
+							.attr("id","drawRect")
+							.attr("x",0)
+							.attr("y",0)
+							.attr("width",pythologyPlot.w)
+							.attr("height",pythologyPlot.h)
+							.style("fill-opacity",0)
+							.style("stroke-width",0.1)
+							.style("stroke","steelblue")
+							.style("fill","white");
+
+
+					$.ajax({
+								url: "filterAnnotations",
+								method:"post",
+								format:"json",
+								data:{"path":workflow.imagePath,"category":categoryName,"x":workflow.step3_currentRegion[0],"y":workflow.step3_currentRegion[1],"w":workflow.step3_size[0],"h":workflow.step3_size[1] },
+								success:function(res){
+
+									res = res.result;
+
+									
+
+									for(var i in res){
+
+										var coors = res[i]["coors"];
+										var details= res[i]["detail"];
+										var newcoors=[];
+										for(var j in coors){
+											newcoors.push({
+												"x":(coors[j][0]-workflow.step3_currentRegion[0])/workflow.step3_currentScale[0],
+												"y":(coors[j][1]-workflow.step3_currentRegion[1])/workflow.step3_currentScale[1],
+												
+											});
+										}
+
+										svg.append("path").datum(newcoors)
+														.attr("class","savedline")
+														.attr("d",lineFunc)
+														.attr("aid",res[i]["id"])
+														.attr("fill",function(d){return getRandomColor();})
+														.attr("fill-opacity",0.4)
+														.attr("stroke","black")
+														.style("cursor","pointer")
+														.attr("stroke-width",1)
+														.on("mouseover",function(){
+
+															d3.select(this).attr("fill-opacity",0.7)
+
+														}).on("mouseout",function(){
+															d3.select(this).attr("fill-opacity",0.4)
+
+														})
+
+
+									}
+
+									callback();
+
+								},error:function(e){
+									alert("error")
+
+								}
+
+
+
+					})
+				},
+				step3_renderAIPredictionPanel:function(div){
+
+					/*
+					var optionstr=""
+					for(var i in res){
+						optionstr+="<option value='"+res[i]["path"]+"'>"+res[i]["name"]+"</option>"
+					}
+
+					*/
+
+					loading(div);
+
+
+					$.ajax({
+
+						url: "queryDLModels",
+						method:"post",
+						format:"json",
+						success:function(res){
+
+							var optstr="";
+							for(var i in res){
+								optstr+="<option value='"+i+"'>"+i+"</option>"
+
+							}
+							div.html("<div  class='form-group'><label for='aimodelselection'>Select an AI Model</label><select class='form-control form-control-sm' id='aimodelselection'>"+optstr+"</select></div><div name='aimodelresult'></div>");
+
+
+
+							$("#aimodelselection").change(function(){
+
+								var value = $(this).val();
+								var contentdiv = div.find("[name='aimodelresult']");
+
+								if(value ===""){
+
+									contentdiv.html("");
+
+								}else{
+
+									var data= res[value];
+
+									var itemstr="";
+									for(var i in data){
+										itemstr+="<p>"+i+": "+data[i]+"</p>";
+									}
+
+									contentdiv.html("<div>"+itemstr+"</div><div><button class='btn btn-sm btn-outline-info' id='AIpredictsubmit'>predict</button></div>");
+
+									$("#AIpredictsubmit").click(function(){
+
+										fullpageLoading.loadingStart();
+
+										var crop=workflow.step3_currentRegion;
+
+
+
+										$.ajax({
+
+											url: "aiModelPredict",
+											method:"post",
+											format:"json",
+											data:{"model":value,"path":workflow.imagePath,"w":crop[2],"h":crop[3],"x":crop[0],"y":crop[1],"resizeW":pythologyPlot.w,"resizeH":pythologyPlot.h},
+											success:function(resdata){
+
+												/*
+												var pixels = resdata.pixels;
+												var canvas = document.getElementById(pythologyPlot.canvasid);
+												var ctx = canvas.getContext('2d');
+												//ctx.clearRect(0, 0, pythologyPlot.w, pythologyPlot.h);
+												
+												
+												for(var i=0;i<pixels.length;i++){
+
+													for(var j=0;j<pixels[i].length;j++){
+														//if( Number(pixels[i][j][0]+pixels[i][j][1]+pixels[i][j][2] )===0){
+														//	continue;
+														//}
+														//var colorstr="rgb("+pixels[i][j][0]+","+pixels[i][j][1]+","+pixels[i][j][2]+")";
+														var colorstr="rgb("+pixels[i][j]+","+pixels[i][j]+","+pixels[i][j]+")";
+
+														ctx.fillStyle=colorstr;
+
+														ctx.fillRect(j,i, 1, 1);
+													}
+												}
+												*/
+												
+												
+												var contours= resdata.contours;
+
+												$("#"+pythologyPlot.svgid).remove();
+												var svg = d3.select("#displayarea").append("svg").attr("id",pythologyPlot.svgid).style("position","absolute")
+													.style("top", '0px')
+													.style("left", '0px')
+													.attr("width",pythologyPlot.w)
+													.attr("height",pythologyPlot.h);
+												
+
+												//var scalex=1/workflow.step3_currentScale[0];
+												//var scaley=1/workflow.step3_currentScale[1];
+
+												//var scalex=1;
+												//var scaley=1
+
+												var lineFunc =d3.line()
+													.x(function(d){return d.x; })
+													.y(function(d){return d.y; })
+													.curve(d3.curveLinear);
+												
+												
+
+												for(var c in contours){
+													var coors = contours[c].coors;
+
+													var newcoors=[];
+													for(var i in coors){
+														newcoors.push({"x":coors[i][0],"y":coors[i][1]});
+													}
+
+													
+													svg.append("path").datum(newcoors)
+														.attr("class","predictline")
+														.attr("d",lineFunc)
+														.attr("fill-opacity",0.3)
+														.attr("fill", getRandomColor())
+														.attr("stroke","black")
+														.attr("stroke-width",2)
+
+													
+													
+
+
+												}
+
+ 												
+
+
+												fullpageLoading.loadingEnd();
+											},error:function(e){
+
+												fullpageLoading.loadingError("error")
+												fullpageLoading.loadingEnd();
+											}
+
+										})
+
+
+
+									})
+
+								}
+
+
+
+
+
+
+							});
+
+							$("#aimodelselection").trigger("change");
+
+
+						},error:function(e){
+							div.html("error")
+						}
+
+
+
+
+					})
+
+					
+
+					
+
+				},
+				step3_renderSelector_node:function(svg,drawRect){
+
+					var status = 0;
+
+					var coordinates=[];
+
+					var lineFunc =d3.line()
+							.x(function(d){return d[0]; })
+							.y(function(d){return d[1]; })
+							.curve(d3.curveLinear);
+					
+
+					drawRect.on("click",function(){
+
+						$(".selectorPath").remove();
+
+						if(status===0){
+							coordinates=[];
+							$(".selectorNode").remove();
+							$(".selectorPath").remove();
+
+							status=1;
+
+							var point = d3.mouse(this);
+
+							coordinates=[point];
+
+							svg.append("circle").attr("class","selectorNode").attr("cx",point[0]).attr("cy",point[1]).attr("r",2)
+								.attr('fill', "steelblue")
+								.on("mouseover",function(){
+
+									d3.select(this).attr("stroke-width",1).attr("stroke","blue").attr("r",3.5);
+									if(status===1){
+
+										status=2;
+									}
+								}).on("mouseout",function(){
+
+									d3.select(this).attr("stroke-width",null).attr("stroke",null).attr("r",2);
+									if(status===2){
+										status=1;
+									}
+
+								}).on("click",function(){
+
+									if(status===2){
+
+										status=3;
+										coordinates.push(coordinates[0]);
+
+										if(coordinates.length>3){
+
+											svg.append("path").attr( "class","savedPath")
+												.attr('fill', "steelblue")
+				        						.attr('fill-opacity', 0.2)
+												.attr("stroke-width",1.6)
+												.attr('stroke', "steelblue")
+												.attr('d', drawPolygonToPath(coordinates));
+
+
+											//$("#mmodelresult").html("");
+
+											var renderstr="";
+											renderstr += "<div class='form-group'>";
+
+											renderstr += "<label>Category Name</label><input type='text' name='category' class='form-control form-control-sm'>";
+
+											renderstr+="<label>Attributes</label><textarea class='form-control' name='attributes'></textarea>";
+											renderstr+="<div><button class='btn btn-outline-info btn-sm' name='submit'>submit</button><button class='btn btn-outline-warning btn-sm' name='cancle'>Cancel</button></div>";
+											renderstr+="</div>";
+
+
+											$("#mmodelresult").html(renderstr);
+
+											var newcoors=[];
+
+											for(var i in coordinates){
+												newcoors.push(
+													Math.round( (coordinates[i][0]*workflow.step3_currentScale[0])+ workflow.step3_currentRegion[0] )
+													+","+
+													Math.round( (coordinates[i][1]*workflow.step3_currentScale[1])+ workflow.step3_currentRegion[1] )
+
+												)
+											}
+											newcoors = newcoors.join(";")
+											
+											$("#mmodelresult").find("[name='cancle']").click(function(){
+
+												status=0;
+
+												coordinates=[];
+												$(".selectorNode").remove();
+												$(".selectorPath").remove();
+												$(".savedPath").remove();
+												
+
+												$("#mmodelresult").html("");
+
+											})
+											$("#mmodelresult").find("[name='submit']").click(function(){
+
+												var category = $("#mmodelresult").find("[name='category']").val();
+												var attrs =  $("#mmodelresult").find("[name='attributes']").val();
+
+
+												$.ajax({
+													url: "saveAnnotation",
+													method:"post",
+													format:"json",
+													data:{
+														"path":workflow.imagePath,
+														"name": category,
+														"attr":attrs,
+														"coors": newcoors,
+													},
+													success:function(res){
+														status=0;
+
+														coordinates=[];
+														$(".selectorNode").remove();
+														$(".savedPath").removeClass("savedPath").addClass("savedline")
+														.attr("stroke","black")
+														.attr("aid",res.aid)
+														.css("cursor","pointer")
+														.attr("fill", getRandomColor())
+														.on("mouseover",function(){
+
+															$(this).attr("fill-opacity",0.7)
+
+														}).on("mouseout",function(){
+															$(this).attr("fill-opacity",0.4)
+
+														})
+
+														
+														$("#mmodelresult").html("");
+
+													},error:function(){
+
+														alert("error")
+													}
+
+												})
+											})
+										}
+
+
+
+
+									}
+
+
+
+								})
+
+
+						}else if(status===1){
+							
+							var point = d3.mouse(this);
+
+							coordinates.push(point);
+							svg.append("circle").attr("class","selectorNode").attr("cx",point[0]).attr("cy",point[1]).attr("r",2)
+								.attr('fill', "steelblue")
+								.on("mouseover",function(){
+
+									d3.select(this).attr("stroke-width",1).attr("stroke","steelblue").attr("r",3.5);
+								}).on("mouseout",function(){
+
+									d3.select(this).attr("stroke-width",null).attr("stroke",null).attr("r",2);
+
+								}).on("click",function(){
+
+									var cx = Number($(this).attr("cx"));
+									var cy = Number($(this).attr("cy"));
+
+									var temp=[];
+									var isremove=false;
+									for(var i in coordinates){
+										
+										if(coordinates[i][0]===cx && coordinates[i][1]===cy){
+											isremove=true;
+
+										}else{
+											temp.push(coordinates[i])
+										}
+
+									}
+									if(isremove===true){
+
+										coordinates=temp;
+										$(".selectorNode").each(function(){
+											var cx2 = Number($(this).attr("cx"));
+											var cy2 = Number($(this).attr("cy"));
+											if(cx===cx2 && cy2===cy){
+
+												$(this).remove();
+											}
+
+										})
+									}
+
+								})
+
+
+
+							svg.append("path").datum(coordinates)
+								.attr("class","selectorPath")
+								.attr("d",lineFunc)
+								.attr("stroke","steelblue")
+								.attr("stroke-width",1)
+								.attr("fill","none")
+
+
+
+
+
+						}
+
+					})
+
+
+				},
+				step3_renderSelector_drag:function(svg){
+
+					var imgselector={ 
+				
+						color:'#002383',
+						init:function(){
+							
+
+							var selectorPath= svg.append("path").attr( "class","selectorPath")
+								.attr('fill', "steelblue")
+        						.attr('fill-opacity', 0.1)
+								.attr("stroke-width",1.6)
+								.attr('stroke', "steelblue");
+
+							var coordinates=[]
+
+							var drag = d3.drag()
+								.on('start', function(){
+
+									
+								selectorPath.attr('d', null);
+								coordinates = [d3.mouse(this)];
+
+								imgselector.start();
+					
+							})
+							.on('drag', function(){
+								var point = d3.mouse(this);
+								coordinates.push(point); 
+								selectorPath.attr('d', drawPolygonToPath(coordinates));
+								//lassoPath.attr('d', polygonToPath(lassoPolygon));
+								
+							})
+							.on('end', function(){
+								
+								selectorPath.attr('d', drawPolygonToPath(coordinates)+"Z");
+								imgselector.end(coordinates);
+
+							});
+
+							svg.call(drag)
+
+						},
+						start:function(){
+
+							$("#mmodelresult").html("");
+						},
+						end:function(coors){
+
+							if(coors.length>5){
+
+								$("#mmodelresult").html("");
+
+								var renderstr="";
+								renderstr += "<div class='form-group'>";
+
+								renderstr += "<label>Category Name</label><input type='text' name='category' class='form-control form-control-sm'>";
+
+								renderstr+="<label>Attributes</label><textarea class='form-control' name='attributes'></textarea>";
+								renderstr+="<div><button class='btn btn-outline-info btn-sm' name='submit'>submit</button></div>";
+								renderstr+="</div>";
+
+
+								$("#mmodelresult").html(renderstr);
+
+								var newcoors=[];
+
+								for(var i in coors){
+									newcoors.push(
+										Math.round( (coors[i][0]*workflow.step3_currentScale[0])+ workflow.step3_currentRegion[0] )
+										+","+
+										Math.round( (coors[i][1]*workflow.step3_currentScale[1])+ workflow.step3_currentRegion[1] )
+
+									)
+								}
+								newcoors = newcoors.join(";")
+								
+
+								$("#mmodelresult").find("[name='submit']").click(function(){
+
+									var category = $("#mmodelresult").find("[name='category']").val();
+									var attrs =  $("#mmodelresult").find("[name='attributes']").val();
+
+
+									$.ajax({
+										url: "saveAnnotation",
+										method:"post",
+										format:"json",
+										data:{
+											"path":workflow.imagePath,
+											"name": category,
+											"attr":attrs,
+											"coors": newcoors,
+										},
+										success:function(res){
+
+
+										},error:function(){
+
+											alert("error")
+										}							
+							
+
+
+
+									})
+								})
+
+
+
+
+
+
+							}
+							
+						},
+
+						update:function(){
+
+							//imgselector.showResult();
+						},
+						showResult:function(){
+
+						}
+
+					}
+
+					imgselector.init();
+
+				},
+				step3_currentRegion:[],
+				step3_currentScale:[],
+				step3_size:[],
+				step3_renderImage: function(path,crop){
+
+					fullpageLoading.loadingStart();
+
+					var canvas = document.getElementById(pythologyPlot.canvasid);
+					var ctx = canvas.getContext('2d');
+					ctx.clearRect(0, 0, pythologyPlot.w, pythologyPlot.h);
+
+					workflow.step3_size=[Number(crop[2]),Number(crop[3]) ];
+
+					$.ajax({
+
+						url: "getScaledCropedImage",
+						method:"post",
+						format:"json",
+						data:{
+							"path":path,
+							"x": crop[0],
+							"y": crop[1],
+							"w": crop[2],
+							"h": crop[3],
+							"resizeW": pythologyPlot.w,
+							"resizeH": pythologyPlot.h,
+						},
+						success:function(res){
+
+							var imgsize = res.size;
+
+							var pixels = res.pixels;
+							
+							
+							for(var i=0;i<pixels.length;i++){
+								for(var j=0;j<pixels[i].length;j++){
+									var colorstr="rgb("+pixels[i][j][0]+","+pixels[i][j][1]+","+pixels[i][j][2]+")";
+
+									ctx.fillStyle=colorstr;
+
+									ctx.fillRect(j,i, 1, 1);
+								}
+							}
+
+							workflow.step3_currentRegion=res.rawRegion;
+							workflow.step3_currentScale=res.scale;
+
+							
+							fullpageLoading.loadingEnd()
+
+
+						},error:function(){
+
+							fullpageLoading.loadingError("error")
+						}
+
+
+					});
+
+				},
+				step4:function(){
+					var div = $(".sidebarStep_enable[step='4']");
+					div = div.find(".stepcontent");
+
+
+
+
+
+
+
+				},
+
+
+
+
+			}
+
+			
+
+
+
+
+
+			initPage();
+			
+
+		})
+
+		
+		function getRandomColor() {
+			var letters = '0123456789ABCDEF';
+			var color = '#';
+			for (var i = 0; i < 6; i++) {
+				color += letters[Math.floor(Math.random() * 16)];
+			}
+			return color;
+
+		}
+
+
+		function drawPolygonToPath(polygon) {
+			return ("M" + (polygon.map(function (d) { return d.join(','); }).join('L')));
+		}
+
+ 
+
+
+
+	</script>
+</body>
+</html>
